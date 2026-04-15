@@ -28,8 +28,20 @@ export default function POSPage() {
   const total = cart.reduce((s, i) => s + i.total, 0);
   const remaining = Math.max(0, total - paid);
 
+  const getAvailableStock = (productId: string) => {
+    const product = products.find(p => p.id === productId);
+    if (!product) return 0;
+    const inCart = cart.find(i => i.productId === productId);
+    return product.quantity - (inCart ? inCart.quantity : 0);
+  };
+
   const addToCart = (product: typeof products[0]) => {
     const existing = cart.find((i) => i.productId === product.id);
+    const currentQty = existing ? existing.quantity : 0;
+    if (currentQty >= product.quantity) {
+      toast({ title: "⚠️ لا يمكن", description: `الكمية المتاحة في المخزون: ${product.quantity}`, variant: "destructive" });
+      return;
+    }
     if (existing) {
       setCart(cart.map((i) => i.productId === product.id ? { ...i, quantity: i.quantity + 1, total: (i.quantity + 1) * i.unitPrice } : i));
     } else {
@@ -38,6 +50,14 @@ export default function POSPage() {
   };
 
   const updateQty = (productId: string, delta: number) => {
+    if (delta > 0) {
+      const available = getAvailableStock(productId);
+      if (available <= 0) {
+        const product = products.find(p => p.id === productId);
+        toast({ title: "⚠️ لا يمكن", description: `الكمية المتاحة في المخزون: ${product?.quantity || 0}`, variant: "destructive" });
+        return;
+      }
+    }
     setCart(cart.map((i) => { if (i.productId !== productId) return i; const newQty = i.quantity + delta; if (newQty <= 0) return null; return { ...i, quantity: newQty, total: newQty * i.unitPrice }; }).filter(Boolean) as InvoiceItem[]);
   };
 
