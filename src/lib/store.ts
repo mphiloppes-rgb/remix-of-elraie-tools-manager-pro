@@ -32,13 +32,25 @@ export interface InvoiceItem {
 
 export interface Invoice {
   id: string;
+  invoiceNumber: string;
   items: InvoiceItem[];
   total: number;
   paid: number;
   remaining: number;
   customerId?: string;
   customerName?: string;
+  isReturned?: boolean;
+  returnedItems?: ReturnedItem[];
   createdAt: string;
+}
+
+export interface ReturnedItem {
+  productId: string;
+  productName: string;
+  quantity: number;
+  unitPrice: number;
+  total: number;
+  returnedAt: string;
 }
 
 export interface Expense {
@@ -52,6 +64,15 @@ export interface Expense {
 
 function generateId(): string {
   return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+}
+
+function generateInvoiceNumber(): string {
+  const invoices = getItem<Invoice[]>('pos_invoices', []);
+  const lastNum = invoices.reduce((max, inv) => {
+    const n = parseInt(inv.invoiceNumber || '0');
+    return n > max ? n : max;
+  }, 0);
+  return String(lastNum + 1).padStart(6, '0');
 }
 
 function getItem<T>(key: string, fallback: T): T {
@@ -124,9 +145,9 @@ export function getInvoices(): Invoice[] {
 export function saveInvoices(invoices: Invoice[]) {
   setItem('pos_invoices', invoices);
 }
-export function addInvoice(inv: Omit<Invoice, 'id' | 'createdAt'>): Invoice {
+export function addInvoice(inv: Omit<Invoice, 'id' | 'createdAt' | 'invoiceNumber'>): Invoice {
   const invoices = getInvoices();
-  const invoice: Invoice = { ...inv, id: generateId(), createdAt: new Date().toISOString() };
+  const invoice: Invoice = { ...inv, id: generateId(), invoiceNumber: generateInvoiceNumber(), createdAt: new Date().toISOString() };
   invoices.push(invoice);
   saveInvoices(invoices);
 
@@ -152,6 +173,115 @@ export function addInvoice(inv: Omit<Invoice, 'id' | 'createdAt'>): Invoice {
 
   return invoice;
 }
+
+export function assignInvoiceToCustomer(invoiceId: string, customerId: string): void {
+  const invoices = getInvoices();
+  const customers = getCustomers();
+  const idx = invoices.findIndex(i => i.id === invoiceId);
+  const customer = customers.find(c => c.id === customerId);
+  if (idx === -1 || !customer) return;
+  
+  invoices[idx].customerId = customerId;
+  invoices[idx].customerName = customer.name;
+  
+  // If there's remaining balance, add to customer
+  if (invoices[idx].remaining > 0) {
+    const cidx = customers.findIndex(c => c.id === customerId);
+    if (cidx !== -1) {
+      customers[cidx].balance += invoices[idx].remaining;
+      saveCustomers(customers);
+    }
+  }
+  saveInvoices(invoices);
+}
+
+export function returnInvoiceFull(invoiceId: string): boolean {
+  const invoices = getInvoices();
+  const idx = invoices.findIndex(i => i.id === invoiceId);
+  if (idx === -1 || invoices[idx].isReturned) return false;
+  
+  const inv = invoices[idx];
+  inv.isReturned = true;
+  inv.returnedItems = inv.items.map(item => ({
+    productId: item.productId,
+    productName: item.productName,
+    quantity: item.quantity,
+    unitPrice: item.unitPrice,
+    total: item.total,
+    returnedAt: new Date().toISOString(),
+  }));
+  
+  // Return stock
+  const products = getProducts();
+  inv.items.forEach(item => {
+    const pidx = products.findIndex(p => p.id === item.productId);
+    if (pidx !== -1) products[pidx].quantity += item.quantity;
+  });
+  saveProducts(products);
+  
+  // Adjust customer balance
+  if (inv.customerId && inv.remaining > 0) {
+    const customers = getCustomers();
+    const cidx = customers.findIndex(c => c.id === inv.customerId);
+    if (cidx !== -1) {
+      customers[cidx].balance = Math.max(0, customers[cidx].balance - inv.remaining);
+      saveCustomers(customers);
+    }
+  }
+  
+  saveInvoices(invoices);
+  return true;
+}
+
+export function returnInvoiceItem(invoiceId: string, productId: string, returnQty: number): boolean {
+  const invoices = getInvoices();
+  const idx = invoices.findIndex(i => i.id === invoiceId);
+  if (idx === -1) return false;
+  
+  const inv = invoices[idx];
+  const itemIdx = inv.items.findIndex(it => it.productId === productId);
+  if (itemIdx === -1) return false;
+  
+  const item = inv.items[itemIdx];
+  const alreadyReturned = (inv.returnedItems || []).filter(r => r.productId === productId).reduce((s, r) => s + r.quantity, 0);
+  if (returnQty > item.quantity - alreadyReturned) return false;
+  
+  if (!inv.returnedItems) inv.returnedItems = [];
+  inv.returnedItems.push({
+    productId: item.productId,
+    productName: item.productName,
+    quantity: returnQty,
+    unitPrice: item.unitPrice,
+    total: returnQty * item.unitPrice,
+    returnedAt: new Date().toISOString(),
+  });
+  
+  // Update invoice totals
+  const totalReturned = inv.returnedItems.reduce((s, r) => s + r.total, 0);
+  inv.total = inv.items.reduce((s, it) => s + it.total, 0) - totalReturned;
+  inv.remaining = Math.max(0, inv.total - inv.paid);
+  
+  // Check if all items fully returned
+  const allReturned = inv.items.every(it => {
+    const retQty = inv.returnedItems!.filter(r => r.productId === it.productId).reduce((s, r) => s + r.quantity, 0);
+    return retQty >= it.quantity;
+  });
+  if (allReturned) inv.isReturned = true;
+  
+  // Return stock
+  const products = getProducts();
+  const pidx = products.findIndex(p => p.id === productId);
+  if (pidx !== -1) products[pidx].quantity += returnQty;
+  saveProducts(products);
+  
+  saveInvoices(invoices);
+  return true;
+}
+
+export function getInvoiceByNumber(invoiceNumber: string): Invoice | undefined {
+  return getInvoices().find(i => i.invoiceNumber === invoiceNumber);
+}
+
 export function getInvoicesByCustomer(customerId: string): Invoice[] {
   return getInvoices().filter(i => i.customerId === customerId).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 }

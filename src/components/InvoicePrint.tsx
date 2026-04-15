@@ -31,7 +31,7 @@ export default function InvoicePrint({ invoice }: { invoice: Invoice }) {
             <span className="font-bold" style={{ color: '#0c4a6e' }}>فاتورة مبيعات / SALES INVOICE</span>
           </div>
           <div className="flex gap-6 text-xs" style={{ color: '#666' }}>
-            <span>الفاتورة: {invoice.id?.slice(-6)}</span>
+            <span>الفاتورة: {invoice.invoiceNumber || invoice.id?.slice(-6)}</span>
             <span>{new Date(invoice.createdAt).toLocaleDateString("ar-EG")}</span>
             <span>{new Date(invoice.createdAt).toLocaleTimeString("ar-EG", { hour: '2-digit', minute: '2-digit' })}</span>
           </div>
