@@ -1,18 +1,21 @@
 import { useState, useMemo } from "react";
-import { Search, Plus, Minus, Trash2, Printer, Check, ShoppingCart } from "lucide-react";
+import { Search, Plus, Minus, Trash2, Printer, Check, ShoppingCart, AlertTriangle } from "lucide-react";
 import { getProducts, getCustomers, addInvoice, type InvoiceItem } from "@/lib/store";
 import { toast } from "@/hooks/use-toast";
 import InvoicePrint from "@/components/InvoicePrint";
 
 export default function POSPage() {
-  const products = useMemo(() => getProducts(), []);
-  const customers = useMemo(() => getCustomers(), []);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const products = useMemo(() => getProducts(), [refreshKey]);
+  const customers = useMemo(() => getCustomers(), [refreshKey]);
   const [search, setSearch] = useState("");
   const [cart, setCart] = useState<InvoiceItem[]>([]);
   const [customerId, setCustomerId] = useState("");
   const [paid, setPaid] = useState<number>(0);
   const [showPrint, setShowPrint] = useState(false);
   const [lastInvoice, setLastInvoice] = useState<any>(null);
+  const [showNoCustomerDialog, setShowNoCustomerDialog] = useState(false);
+  const [showConfirmSale, setShowConfirmSale] = useState(false);
 
   const filtered = useMemo(() => {
     if (!search.trim()) return products.slice(0, 20);
@@ -40,26 +43,83 @@ export default function POSPage() {
 
   const removeFromCart = (productId: string) => setCart(cart.filter((i) => i.productId !== productId));
 
-  const completeSale = () => {
+  const attemptSale = () => {
     if (cart.length === 0) { toast({ title: "خطأ", description: "الفاتورة فارغة", variant: "destructive" }); return; }
+    if (!customerId) {
+      setShowNoCustomerDialog(true);
+      return;
+    }
+    setShowConfirmSale(true);
+  };
+
+  const confirmAndSell = () => {
+    setShowConfirmSale(false);
+    setShowNoCustomerDialog(false);
     const customer = customers.find((c) => c.id === customerId);
     const invoice = addInvoice({ items: cart, total, paid, remaining, customerId: customerId || undefined, customerName: customer?.name });
     setLastInvoice(invoice);
-    toast({ title: "تم", description: "تم إتمام عملية البيع بنجاح ✅" });
+    toast({ title: "تم ✅", description: `تم إتمام البيع - فاتورة رقم ${invoice.invoiceNumber}` });
     setCart([]); setPaid(0); setCustomerId("");
+    setRefreshKey(k => k + 1);
+  };
+
+  const proceedWithoutCustomer = () => {
+    setShowNoCustomerDialog(false);
+    setShowConfirmSale(true);
   };
 
   const handlePrint = () => {
-    if (!lastInvoice && cart.length > 0) completeSale();
-    setShowPrint(true);
-    setTimeout(() => { window.print(); setShowPrint(false); }, 300);
+    if (!lastInvoice && cart.length > 0) attemptSale();
+    else if (lastInvoice) {
+      setShowPrint(true);
+      setTimeout(() => { window.print(); setShowPrint(false); }, 300);
+    }
   };
 
-  const invoiceForPrint = lastInvoice || { items: cart, total, paid, remaining, customerName: customers.find((c) => c.id === customerId)?.name, createdAt: new Date().toISOString(), id: "draft" };
+  const invoiceForPrint = lastInvoice || { items: cart, total, paid, remaining, customerName: customers.find((c) => c.id === customerId)?.name, createdAt: new Date().toISOString(), id: "draft", invoiceNumber: "------" };
 
   return (
     <>
       {showPrint && <InvoicePrint invoice={invoiceForPrint} />}
+
+      {/* No Customer Dialog */}
+      {showNoCustomerDialog && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm animate-fade-in-up">
+          <div className="glass-modal rounded-2xl p-6 w-full max-w-sm mx-4 animate-scale-in text-center">
+            <div className="w-14 h-14 rounded-full bg-amber-500/20 flex items-center justify-center mx-auto mb-4">
+              <AlertTriangle className="text-amber-500" size={28} />
+            </div>
+            <h3 className="font-extrabold text-lg mb-2">لم يتم اختيار عميل</h3>
+            <p className="text-muted-foreground text-sm mb-6">هل تريد إتمام البيع بدون تحديد عميل؟</p>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={proceedWithoutCustomer} className="btn-primary py-3 text-sm">بدون عميل</button>
+              <button onClick={() => setShowNoCustomerDialog(false)} className="bg-secondary text-secondary-foreground py-3 rounded-xl font-extrabold text-sm hover:opacity-90 transition-all">اختيار عميل</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Confirm Sale Dialog */}
+      {showConfirmSale && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm animate-fade-in-up">
+          <div className="glass-modal rounded-2xl p-6 w-full max-w-sm mx-4 animate-scale-in text-center">
+            <h3 className="font-extrabold text-lg mb-2">تأكيد عملية البيع</h3>
+            <div className="bg-accent/50 rounded-xl p-4 mb-4 space-y-2 text-sm">
+              <div className="flex justify-between"><span>عدد الأصناف</span><span className="font-extrabold">{cart.length}</span></div>
+              <div className="flex justify-between"><span>الإجمالي</span><span className="font-extrabold">{total.toLocaleString()} ج.م</span></div>
+              <div className="flex justify-between"><span>المدفوع</span><span className="font-extrabold text-emerald-400">{paid.toLocaleString()} ج.م</span></div>
+              {remaining > 0 && <div className="flex justify-between"><span>المتبقي</span><span className="font-extrabold text-destructive">{remaining.toLocaleString()} ج.م</span></div>}
+              {customerId && <div className="flex justify-between"><span>العميل</span><span className="font-extrabold">{customers.find(c => c.id === customerId)?.name}</span></div>}
+              {!customerId && <div className="flex justify-between"><span>العميل</span><span className="text-muted-foreground">بدون عميل</span></div>}
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <button onClick={confirmAndSell} className="btn-primary py-3 text-sm"><Check size={16} /> تأكيد</button>
+              <button onClick={() => setShowConfirmSale(false)} className="bg-secondary text-secondary-foreground py-3 rounded-xl font-extrabold text-sm hover:opacity-90 transition-all">إلغاء</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="no-print">
         <h1 className="page-header">نقطة البيع</h1>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -117,7 +177,7 @@ export default function POSPage() {
                 <div className="flex justify-between font-extrabold text-destructive"><span>المتبقي</span><span>{remaining.toLocaleString()} ج.م</span></div>
               </div>
               <div className="grid grid-cols-2 gap-3 mt-4">
-                <button onClick={completeSale} className="btn-primary py-3"><Check size={18} /> إتمام البيع</button>
+                <button onClick={attemptSale} className="btn-primary py-3"><Check size={18} /> إتمام البيع</button>
                 <button onClick={handlePrint} className="flex items-center justify-center gap-2 bg-secondary text-secondary-foreground py-3 rounded-xl font-extrabold hover:opacity-90 transition-all duration-200"><Printer size={18} /> طباعة</button>
               </div>
             </div>

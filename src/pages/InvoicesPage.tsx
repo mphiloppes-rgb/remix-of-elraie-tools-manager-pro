@@ -1,26 +1,108 @@
 import { useState, useMemo } from "react";
-import { Search, Eye, Printer, Receipt } from "lucide-react";
-import { getInvoices, type Invoice } from "@/lib/store";
+import { Search, Eye, Printer, Receipt, RotateCcw, UserPlus, Package } from "lucide-react";
+import { getInvoices, getCustomers, getInvoiceByNumber, returnInvoiceFull, returnInvoiceItem, assignInvoiceToCustomer, type Invoice } from "@/lib/store";
+import { toast } from "@/hooks/use-toast";
 import InvoicePrint from "@/components/InvoicePrint";
 
 export default function InvoicesPage() {
-  const invoices = useMemo(() => getInvoices().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), []);
+  const [refreshKey, setRefreshKey] = useState(0);
+  const invoices = useMemo(() => getInvoices().sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime()), [refreshKey]);
+  const customers = useMemo(() => getCustomers(), [refreshKey]);
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
   const [dateTo, setDateTo] = useState("");
   const [selectedInvoice, setSelectedInvoice] = useState<Invoice | null>(null);
   const [printInvoice, setPrintInvoice] = useState<Invoice | null>(null);
 
+  // Return dialogs
+  const [showReturnDialog, setShowReturnDialog] = useState(false);
+  const [returnInvoice, setReturnInvoice] = useState<Invoice | null>(null);
+  const [returnType, setReturnType] = useState<'full' | 'partial'>('full');
+  const [returnProductId, setReturnProductId] = useState("");
+  const [returnQty, setReturnQty] = useState(1);
+  const [confirmReturn, setConfirmReturn] = useState(false);
+
+  // Assign dialog
+  const [showAssignDialog, setShowAssignDialog] = useState(false);
+  const [assignInvoice, setAssignInvoice] = useState<Invoice | null>(null);
+  const [assignCustomerId, setAssignCustomerId] = useState("");
+  const [confirmAssign, setConfirmAssign] = useState(false);
+
+  // Search by invoice number
+  const [invoiceNumSearch, setInvoiceNumSearch] = useState("");
+
   const filtered = useMemo(() => {
     return invoices.filter((inv) => {
-      if (search.trim()) { const s = search.toLowerCase(); if (!inv.customerName?.toLowerCase().includes(s) && !inv.id.includes(s)) return false; }
+      if (search.trim()) {
+        const s = search.toLowerCase();
+        if (!inv.customerName?.toLowerCase().includes(s) && !inv.id.includes(s) && !inv.invoiceNumber?.includes(s)) return false;
+      }
+      if (invoiceNumSearch.trim()) {
+        if (!inv.invoiceNumber?.includes(invoiceNumSearch.trim())) return false;
+      }
       if (dateFrom && inv.createdAt < dateFrom) return false;
       if (dateTo && inv.createdAt > dateTo + "T23:59:59") return false;
       return true;
     });
-  }, [invoices, search, dateFrom, dateTo]);
+  }, [invoices, search, invoiceNumSearch, dateFrom, dateTo]);
 
   const handlePrint = (inv: Invoice) => { setPrintInvoice(inv); setTimeout(() => { window.print(); setPrintInvoice(null); }, 300); };
+
+  const openReturnDialog = (inv: Invoice) => {
+    setReturnInvoice(inv);
+    setReturnType('full');
+    setReturnProductId(inv.items[0]?.productId || "");
+    setReturnQty(1);
+    setConfirmReturn(false);
+    setShowReturnDialog(true);
+  };
+
+  const handleReturn = () => {
+    if (!confirmReturn) { setConfirmReturn(true); return; }
+    if (!returnInvoice) return;
+    
+    let success = false;
+    if (returnType === 'full') {
+      success = returnInvoiceFull(returnInvoice.id);
+    } else {
+      success = returnInvoiceItem(returnInvoice.id, returnProductId, returnQty);
+    }
+
+    if (success) {
+      toast({ title: "تم المرتجع ✅", description: returnType === 'full' ? "تم ارتجاع الفاتورة بالكامل وتحديث المخزون" : `تم ارتجاع ${returnQty} قطعة وتحديث المخزون` });
+      setShowReturnDialog(false);
+      setSelectedInvoice(null);
+      setRefreshKey(k => k + 1);
+    } else {
+      toast({ title: "خطأ", description: "لم يتم إتمام المرتجع - تحقق من الكمية", variant: "destructive" });
+    }
+    setConfirmReturn(false);
+  };
+
+  const openAssignDialog = (inv: Invoice) => {
+    setAssignInvoice(inv);
+    setAssignCustomerId("");
+    setConfirmAssign(false);
+    setShowAssignDialog(true);
+  };
+
+  const handleAssign = () => {
+    if (!confirmAssign) { setConfirmAssign(true); return; }
+    if (!assignInvoice || !assignCustomerId) return;
+    assignInvoiceToCustomer(assignInvoice.id, assignCustomerId);
+    toast({ title: "تم ✅", description: "تم إسناد الفاتورة للعميل بنجاح" });
+    setShowAssignDialog(false);
+    setSelectedInvoice(null);
+    setRefreshKey(k => k + 1);
+    setConfirmAssign(false);
+  };
+
+  const getReturnableQty = (inv: Invoice, productId: string) => {
+    const item = inv.items.find(it => it.productId === productId);
+    if (!item) return 0;
+    const alreadyReturned = (inv.returnedItems || []).filter(r => r.productId === productId).reduce((s, r) => s + r.quantity, 0);
+    return item.quantity - alreadyReturned;
+  };
 
   return (
     <>
@@ -31,15 +113,17 @@ export default function InvoicesPage() {
           <h1 className="page-header mb-0">الفواتير ({invoices.length})</h1>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-6 animate-fade-in-up">
+        <div className="grid grid-cols-1 sm:grid-cols-4 gap-3 mb-6 animate-fade-in-up">
           <div className="relative">
             <Search className="absolute right-3 top-3 text-muted-foreground" size={18} />
-            <input type="text" placeholder="بحث بالعميل..." value={search} onChange={(e) => setSearch(e.target.value)} className="input-field w-full pr-10" />
+            <input type="text" placeholder="بحث بالعميل أو رقم الفاتورة..." value={search} onChange={(e) => setSearch(e.target.value)} className="input-field w-full pr-10" />
           </div>
+          <input type="text" placeholder="بحث برقم الفاتورة (6 أرقام)..." value={invoiceNumSearch} onChange={(e) => setInvoiceNumSearch(e.target.value)} className="input-field" />
           <input type="date" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} className="input-field" />
           <input type="date" value={dateTo} onChange={(e) => setDateTo(e.target.value)} className="input-field" />
         </div>
 
+        {/* Invoice Detail Modal */}
         {selectedInvoice && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-foreground/20 backdrop-blur-sm animate-fade-in-up">
             <div className="glass-modal rounded-2xl p-6 w-full max-w-lg mx-4 max-h-[80vh] overflow-y-auto animate-scale-in">
@@ -47,19 +131,111 @@ export default function InvoicesPage() {
                 <h3 className="font-extrabold text-lg">تفاصيل الفاتورة</h3>
                 <button onClick={() => setSelectedInvoice(null)} className="p-2 hover:bg-muted rounded-xl transition-colors text-muted-foreground">✕</button>
               </div>
-              <p className="text-sm text-muted-foreground mb-1">رقم: {selectedInvoice.id.slice(-6)}</p>
+              <p className="text-sm text-muted-foreground mb-1">رقم الفاتورة: <span className="font-mono font-bold text-primary">{selectedInvoice.invoiceNumber || selectedInvoice.id.slice(-6)}</span></p>
               <p className="text-sm text-muted-foreground mb-1">{new Date(selectedInvoice.createdAt).toLocaleString("ar-EG")}</p>
-              {selectedInvoice.customerName && <p className="text-sm mb-4">العميل: <strong>{selectedInvoice.customerName}</strong></p>}
+              {selectedInvoice.customerName && <p className="text-sm mb-2">العميل: <strong>{selectedInvoice.customerName}</strong></p>}
+              {selectedInvoice.isReturned && <p className="text-sm text-destructive font-extrabold mb-2">⚠️ تم ارتجاع هذه الفاتورة</p>}
+              
               <table className="w-full text-sm mb-4">
                 <thead><tr className="border-b"><th className="text-right py-2 font-extrabold">المنتج</th><th className="text-center py-2 font-extrabold">الكمية</th><th className="text-center py-2 font-extrabold">السعر</th><th className="text-left py-2 font-extrabold">الإجمالي</th></tr></thead>
-                <tbody>{selectedInvoice.items.map((item, i) => (<tr key={i} className="border-b"><td className="py-2 font-bold">{item.productName}</td><td className="text-center">{item.quantity}</td><td className="text-center">{item.unitPrice.toLocaleString()}</td><td className="text-left font-bold">{item.total.toLocaleString()}</td></tr>))}</tbody>
+                <tbody>{selectedInvoice.items.map((item, i) => {
+                  const retQty = (selectedInvoice.returnedItems || []).filter(r => r.productId === item.productId).reduce((s, r) => s + r.quantity, 0);
+                  return (
+                    <tr key={i} className="border-b">
+                      <td className="py-2 font-bold">{item.productName}</td>
+                      <td className="text-center">{item.quantity} {retQty > 0 && <span className="text-destructive text-xs">(مرتجع: {retQty})</span>}</td>
+                      <td className="text-center">{item.unitPrice.toLocaleString()}</td>
+                      <td className="text-left font-bold">{item.total.toLocaleString()}</td>
+                    </tr>
+                  );
+                })}</tbody>
               </table>
               <div className="space-y-2 border-t pt-3">
                 <div className="flex justify-between font-extrabold"><span>الإجمالي</span><span>{selectedInvoice.total.toLocaleString()} ج.م</span></div>
                 <div className="flex justify-between"><span>المدفوع</span><span className="text-success font-bold">{selectedInvoice.paid.toLocaleString()} ج.م</span></div>
                 <div className="flex justify-between font-extrabold text-destructive"><span>المتبقي</span><span>{selectedInvoice.remaining.toLocaleString()} ج.م</span></div>
               </div>
-              <button onClick={() => handlePrint(selectedInvoice)} className="w-full mt-4 btn-primary py-3"><Printer size={18} /> طباعة</button>
+              <div className="grid grid-cols-3 gap-2 mt-4">
+                <button onClick={() => handlePrint(selectedInvoice)} className="btn-primary py-2.5 text-sm"><Printer size={16} /> طباعة</button>
+                {!selectedInvoice.isReturned && (
+                  <button onClick={() => openReturnDialog(selectedInvoice)} className="flex items-center justify-center gap-1.5 bg-amber-500/20 text-amber-400 py-2.5 rounded-xl font-extrabold text-sm hover:bg-amber-500/30 transition-all"><RotateCcw size={16} /> مرتجع</button>
+                )}
+                {!selectedInvoice.customerId && (
+                  <button onClick={() => openAssignDialog(selectedInvoice)} className="flex items-center justify-center gap-1.5 bg-emerald-500/20 text-emerald-400 py-2.5 rounded-xl font-extrabold text-sm hover:bg-emerald-500/30 transition-all"><UserPlus size={16} /> إسناد</button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Return Dialog */}
+        {showReturnDialog && returnInvoice && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/20 backdrop-blur-sm animate-fade-in-up">
+            <div className="glass-modal rounded-2xl p-6 w-full max-w-md mx-4 animate-scale-in">
+              <h3 className="font-extrabold text-lg mb-4 flex items-center gap-2"><RotateCcw size={20} className="text-amber-400" /> مرتجع فاتورة #{returnInvoice.invoiceNumber || returnInvoice.id.slice(-6)}</h3>
+              
+              <div className="space-y-4">
+                <div className="flex gap-3">
+                  <button onClick={() => { setReturnType('full'); setConfirmReturn(false); }} className={`flex-1 py-2.5 rounded-xl font-extrabold text-sm transition-all ${returnType === 'full' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>مرتجع كامل</button>
+                  <button onClick={() => { setReturnType('partial'); setConfirmReturn(false); }} className={`flex-1 py-2.5 rounded-xl font-extrabold text-sm transition-all ${returnType === 'partial' ? 'bg-primary text-primary-foreground' : 'bg-muted'}`}>مرتجع جزئي</button>
+                </div>
+
+                {returnType === 'partial' && (
+                  <>
+                    <select value={returnProductId} onChange={(e) => { setReturnProductId(e.target.value); setConfirmReturn(false); }} className="input-field w-full">
+                      {returnInvoice.items.map(item => {
+                        const avail = getReturnableQty(returnInvoice, item.productId);
+                        return <option key={item.productId} value={item.productId} disabled={avail === 0}>{item.productName} (متاح: {avail})</option>;
+                      })}
+                    </select>
+                    <div className="flex items-center gap-3">
+                      <label className="text-sm font-bold min-w-[60px]">الكمية</label>
+                      <input type="number" min={1} max={getReturnableQty(returnInvoice, returnProductId)} value={returnQty} onChange={(e) => { setReturnQty(Number(e.target.value)); setConfirmReturn(false); }} className="input-field flex-1" />
+                    </div>
+                  </>
+                )}
+
+                {confirmReturn && (
+                  <div className="bg-destructive/10 border border-destructive/20 rounded-xl p-3 text-center">
+                    <p className="text-sm font-extrabold text-destructive">⚠️ هل أنت متأكد؟ سيتم تحديث المخزون تلقائياً</p>
+                  </div>
+                )}
+
+                <div className="grid grid-cols-2 gap-3">
+                  <button onClick={handleReturn} className="flex items-center justify-center gap-1.5 bg-amber-500 text-white py-3 rounded-xl font-extrabold text-sm hover:bg-amber-600 transition-all">
+                    {confirmReturn ? "تأكيد المرتجع" : "مرتجع"}
+                  </button>
+                  <button onClick={() => { setShowReturnDialog(false); setConfirmReturn(false); }} className="bg-secondary text-secondary-foreground py-3 rounded-xl font-extrabold text-sm hover:opacity-90 transition-all">إلغاء</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Assign Dialog */}
+        {showAssignDialog && assignInvoice && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-foreground/20 backdrop-blur-sm animate-fade-in-up">
+            <div className="glass-modal rounded-2xl p-6 w-full max-w-sm mx-4 animate-scale-in">
+              <h3 className="font-extrabold text-lg mb-4 flex items-center gap-2"><UserPlus size={20} className="text-emerald-400" /> إسناد فاتورة لعميل</h3>
+              <p className="text-sm text-muted-foreground mb-4">فاتورة رقم: <span className="font-mono font-bold">{assignInvoice.invoiceNumber || assignInvoice.id.slice(-6)}</span></p>
+              
+              <select value={assignCustomerId} onChange={(e) => { setAssignCustomerId(e.target.value); setConfirmAssign(false); }} className="input-field w-full mb-4">
+                <option value="">اختر عميل...</option>
+                {customers.map(c => <option key={c.id} value={c.id}>{c.name} {c.phone ? `- ${c.phone}` : ''}</option>)}
+              </select>
+
+              {confirmAssign && (
+                <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-3 text-center mb-4">
+                  <p className="text-sm font-extrabold text-emerald-400">هل أنت متأكد من إسناد الفاتورة لهذا العميل؟</p>
+                </div>
+              )}
+
+              <div className="grid grid-cols-2 gap-3">
+                <button onClick={handleAssign} disabled={!assignCustomerId} className="btn-primary py-3 text-sm disabled:opacity-50">
+                  {confirmAssign ? "تأكيد الإسناد" : "إسناد"}
+                </button>
+                <button onClick={() => { setShowAssignDialog(false); setConfirmAssign(false); }} className="bg-secondary text-secondary-foreground py-3 rounded-xl font-extrabold text-sm hover:opacity-90 transition-all">إلغاء</button>
+              </div>
             </div>
           </div>
         )}
@@ -68,28 +244,37 @@ export default function InvoicesPage() {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b bg-muted/30">
-                <th className="text-right p-3 font-extrabold">الرقم</th>
+                <th className="text-right p-3 font-extrabold">رقم الفاتورة</th>
                 <th className="text-right p-3 font-extrabold">التاريخ</th>
                 <th className="text-right p-3 font-extrabold">العميل</th>
                 <th className="text-right p-3 font-extrabold">الإجمالي</th>
                 <th className="text-right p-3 font-extrabold">المدفوع</th>
                 <th className="text-right p-3 font-extrabold">المتبقي</th>
-                <th className="text-center p-3 font-extrabold">عرض</th>
+                <th className="text-right p-3 font-extrabold">الحالة</th>
+                <th className="text-center p-3 font-extrabold">إجراءات</th>
               </tr>
             </thead>
             <tbody>
               {filtered.map((inv, idx) => (
-                <tr key={inv.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors animate-fade-in-up" style={{ animationDelay: `${idx * 0.03}s` }} onClick={() => setSelectedInvoice(inv)}>
-                  <td className="p-3 font-mono text-xs">{inv.id.slice(-6)}</td>
-                  <td className="p-3 text-muted-foreground">{new Date(inv.createdAt).toLocaleDateString("ar-EG")}</td>
-                  <td className="p-3 font-bold">{inv.customerName || "بدون عميل"}</td>
-                  <td className="p-3 font-extrabold">{inv.total.toLocaleString()}</td>
-                  <td className="p-3">{inv.paid.toLocaleString()}</td>
-                  <td className={`p-3 font-extrabold ${inv.remaining > 0 ? "text-destructive" : "text-success"}`}>{inv.remaining.toLocaleString()}</td>
-                  <td className="p-3 text-center"><Eye size={16} className="inline text-muted-foreground" /></td>
+                <tr key={inv.id} className="border-b hover:bg-muted/20 cursor-pointer transition-colors animate-fade-in-up" style={{ animationDelay: `${idx * 0.03}s` }}>
+                  <td className="p-3 font-mono font-bold text-primary" onClick={() => setSelectedInvoice(inv)}>{inv.invoiceNumber || inv.id.slice(-6)}</td>
+                  <td className="p-3 text-muted-foreground" onClick={() => setSelectedInvoice(inv)}>{new Date(inv.createdAt).toLocaleDateString("ar-EG")}</td>
+                  <td className="p-3 font-bold" onClick={() => setSelectedInvoice(inv)}>{inv.customerName || "بدون عميل"}</td>
+                  <td className="p-3 font-extrabold" onClick={() => setSelectedInvoice(inv)}>{inv.total.toLocaleString()}</td>
+                  <td className="p-3" onClick={() => setSelectedInvoice(inv)}>{inv.paid.toLocaleString()}</td>
+                  <td className={`p-3 font-extrabold ${inv.remaining > 0 ? "text-destructive" : "text-success"}`} onClick={() => setSelectedInvoice(inv)}>{inv.remaining.toLocaleString()}</td>
+                  <td className="p-3" onClick={() => setSelectedInvoice(inv)}>
+                    {inv.isReturned ? <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg font-bold">مرتجع</span> : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-lg font-bold">مكتملة</span>}
+                  </td>
+                  <td className="p-3 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <button onClick={(e) => { e.stopPropagation(); setSelectedInvoice(inv); }} className="p-1.5 hover:bg-muted rounded-lg transition-colors"><Eye size={15} className="text-muted-foreground" /></button>
+                      {!inv.isReturned && <button onClick={(e) => { e.stopPropagation(); openReturnDialog(inv); }} className="p-1.5 hover:bg-amber-500/10 rounded-lg transition-colors"><RotateCcw size={15} className="text-amber-400" /></button>}
+                    </div>
+                  </td>
                 </tr>
               ))}
-              {filtered.length === 0 && <tr><td colSpan={7} className="text-center py-8 text-muted-foreground">لا توجد فواتير</td></tr>}
+              {filtered.length === 0 && <tr><td colSpan={8} className="text-center py-8 text-muted-foreground">لا توجد فواتير</td></tr>}
             </tbody>
           </table>
         </div>
