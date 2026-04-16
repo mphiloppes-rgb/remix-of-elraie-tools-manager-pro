@@ -335,7 +335,7 @@ export function payInvoice(invoiceId: string, amount: number): boolean {
 }
 
 // Pay customer debt directly (distributes across oldest invoices first)
-export function payCustomerDebt(customerId: string, amount: number): boolean {
+export function payCustomerDebt(customerId: string, amount: number, note?: string): boolean {
   if (amount <= 0) return false;
   const customers = getCustomers();
   const cidx = customers.findIndex(c => c.id === customerId);
@@ -359,6 +359,11 @@ export function payCustomerDebt(customerId: string, amount: number): boolean {
   saveInvoices(invoices);
   customers[cidx].balance = Math.max(0, customers[cidx].balance - amount);
   saveCustomers(customers);
+
+  // Log payment
+  const allPayments = getItem<CustomerPayment[]>('pos_customer_payments', []);
+  allPayments.push({ id: generateId(), customerId, amount, date: new Date().toISOString(), note });
+  setItem('pos_customer_payments', allPayments);
   return true;
 }
 export function getTodayInvoices(): Invoice[] {
