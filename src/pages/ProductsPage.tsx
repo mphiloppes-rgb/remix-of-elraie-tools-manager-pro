@@ -76,7 +76,32 @@ export default function ProductsPage() {
         </div>
       )}
 
-      <div className="glass-table animate-fade-in-up">
+      {/* Mobile cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:hidden gap-3 animate-fade-in-up">
+        {filtered.map((p) => (
+          <div key={p.id} className="stat-card">
+            <div className="flex justify-between items-start mb-2">
+              <div className="flex-1 min-w-0">
+                <p className="font-extrabold truncate">{p.name}</p>
+                {p.code && <p className="text-xs text-muted-foreground">كود: {p.code}</p>}
+                {p.brand && <p className="text-xs text-muted-foreground">{p.brand}</p>}
+              </div>
+              <div className="flex gap-1 flex-shrink-0">
+                <button onClick={() => openEdit(p)} className="p-1.5 rounded-lg hover:bg-muted"><Edit2 size={14} /></button>
+                <button onClick={() => handleDelete(p.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 size={14} /></button>
+              </div>
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center mt-3 pt-3 border-t border-border/50">
+              <div><p className="text-xs text-muted-foreground">شراء</p><p className="font-extrabold text-sm">{p.costPrice.toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">بيع</p><p className="font-extrabold text-sm text-primary">{p.sellPrice.toLocaleString()}</p></div>
+              <div><p className="text-xs text-muted-foreground">المخزون</p><p className={`font-extrabold text-sm ${p.quantity <= p.lowStockThreshold ? "text-destructive" : ""}`}>{p.quantity}</p></div>
+            </div>
+          </div>
+        ))}
+        {filtered.length === 0 && <p className="col-span-full text-center text-muted-foreground py-8">لا توجد منتجات</p>}
+      </div>
+
+      <div className="hidden md:block glass-table animate-fade-in-up overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/30">

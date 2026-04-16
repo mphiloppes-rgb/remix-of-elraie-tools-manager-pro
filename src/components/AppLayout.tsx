@@ -117,7 +117,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
             {sidebarOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
         </div>
-        <div className="p-6 animate-fade-in-up">{children}</div>
+        <div className="p-3 sm:p-4 md:p-6 animate-fade-in-up">{children}</div>
       </main>
     </div>
   );

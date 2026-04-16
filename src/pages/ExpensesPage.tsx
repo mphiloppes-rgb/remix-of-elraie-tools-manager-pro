@@ -44,9 +44,12 @@ export default function ExpensesPage() {
 
   return (
     <div>
-      <div className="flex justify-between items-center mb-6">
-        <h1 className="page-header mb-0">المصاريف</h1>
-        <button onClick={() => setShowForm(true)} className="btn-primary">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-6">
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 rounded-xl bg-destructive/10 flex items-center justify-center"><Wallet className="text-destructive" size={22} /></div>
+          <h1 className="page-header mb-0">المصاريف ({expenses.length})</h1>
+        </div>
+        <button onClick={() => setShowForm(true)} className="btn-primary w-full sm:w-auto">
           <Plus size={18} /> إضافة مصروف
         </button>
       </div>
@@ -92,7 +95,27 @@ export default function ExpensesPage() {
         </div>
       )}
 
-      <div className="glass-table">
+      {/* Mobile cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:hidden gap-3">
+        {expenses.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).map((e) => (
+          <div key={e.id} className="stat-card">
+            <div className="flex justify-between items-start mb-2">
+              <div>
+                <p className="font-extrabold">{e.name}</p>
+                <span className="inline-block mt-1 px-2 py-0.5 bg-accent rounded-lg text-xs font-bold">{e.type}</span>
+              </div>
+              <button onClick={() => handleDelete(e.id)} className="p-1.5 rounded-lg hover:bg-destructive/10 text-destructive"><Trash2 size={14} /></button>
+            </div>
+            <div className="flex justify-between items-end mt-2 pt-2 border-t border-border/50">
+              <span className="text-xs text-muted-foreground">{new Date(e.date).toLocaleDateString("ar-EG")}</span>
+              <span className="font-extrabold text-destructive">{e.amount.toLocaleString()} ج.م</span>
+            </div>
+          </div>
+        ))}
+        {expenses.length === 0 && <p className="col-span-full text-center text-muted-foreground py-8">لا توجد مصاريف</p>}
+      </div>
+
+      <div className="hidden md:block glass-table overflow-x-auto">
         <table className="w-full text-sm">
           <thead>
             <tr className="border-b bg-muted/30">
