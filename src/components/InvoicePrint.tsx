@@ -28,7 +28,9 @@ export default function InvoicePrint({ invoice }: { invoice: Invoice }) {
         {/* Invoice meta */}
         <div className="bg-gray-50 border-x border-gray-200 px-5 py-3 flex justify-between items-center text-sm">
           <div>
-            <span className="font-bold" style={{ color: '#0c4a6e' }}>فاتورة مبيعات / SALES INVOICE</span>
+            <span className="font-bold" style={{ color: '#0c4a6e' }}>
+              {(invoice as any).status === 'saved' ? 'فاتورة محفوظة / SAVED INVOICE' : 'فاتورة مبيعات / SALES INVOICE'}
+            </span>
           </div>
           <div className="flex gap-6 text-xs" style={{ color: '#666' }}>
             <span>الفاتورة: {invoice.invoiceNumber || invoice.id?.slice(-6)}</span>
@@ -51,16 +53,20 @@ export default function InvoicePrint({ invoice }: { invoice: Invoice }) {
               <th className="py-2.5 px-3 text-right">اسم المنتج</th>
               <th className="py-2.5 px-3 text-center">الكمية</th>
               <th className="py-2.5 px-3 text-center">سعر الوحدة</th>
+              <th className="py-2.5 px-3 text-center">الخصم</th>
               <th className="py-2.5 px-3 text-left">الإجمالي</th>
             </tr>
           </thead>
           <tbody>
-            {invoice.items.map((item, idx) => (
+            {invoice.items.map((item: any, idx: number) => (
               <tr key={idx} className={idx % 2 === 0 ? 'bg-white' : 'bg-sky-50/50'} style={{ borderBottom: '1px solid #e5e7eb' }}>
                 <td className="py-2.5 px-3 text-center font-bold" style={{ color: '#0284c7' }}>{idx + 1}</td>
                 <td className="py-2.5 px-3 font-medium">{item.productName}</td>
                 <td className="py-2.5 px-3 text-center">{item.quantity}</td>
                 <td className="py-2.5 px-3 text-center">{item.unitPrice.toLocaleString()} ج.م</td>
+                <td className="py-2.5 px-3 text-center" style={{ color: item.discount ? '#d97706' : '#999' }}>
+                  {item.discount ? `- ${item.discount.toLocaleString()}` : '—'}
+                </td>
                 <td className="py-2.5 px-3 text-left font-bold">{item.total.toLocaleString()} ج.م</td>
               </tr>
             ))}
@@ -69,6 +75,27 @@ export default function InvoicePrint({ invoice }: { invoice: Invoice }) {
 
         {/* Totals */}
         <div className="border border-gray-200 rounded-b-xl overflow-hidden">
+          {(invoice as any).subtotal && (invoice as any).subtotal !== invoice.total && (
+            <div className="flex justify-between items-center px-5 py-2 bg-white border-b border-gray-200 text-sm">
+              <span className="font-bold">الإجمالي قبل الخصم / SUBTOTAL:</span>
+              <span className="font-bold">{(invoice as any).subtotal.toLocaleString()} ج.م</span>
+            </div>
+          )}
+          {(invoice as any).itemsDiscountTotal > 0 && (
+            <div className="flex justify-between items-center px-5 py-2 bg-amber-50 border-b border-gray-200 text-sm" style={{ color: '#b45309' }}>
+              <span className="font-bold">خصم الأصناف / ITEMS DISCOUNT:</span>
+              <span className="font-bold">- {(invoice as any).itemsDiscountTotal.toLocaleString()} ج.م</span>
+            </div>
+          )}
+          {(invoice as any).invoiceDiscount > 0 && (
+            <div className="flex justify-between items-center px-5 py-2 bg-amber-50 border-b border-gray-200 text-sm" style={{ color: '#b45309' }}>
+              <span className="font-bold">
+                خصم الفاتورة / INVOICE DISCOUNT
+                {(invoice as any).invoiceDiscountType === 'percent' && (invoice as any).invoiceDiscountValue ? ` (${(invoice as any).invoiceDiscountValue}%)` : ''}:
+              </span>
+              <span className="font-bold">- {(invoice as any).invoiceDiscount.toLocaleString()} ج.م</span>
+            </div>
+          )}
           <div className="flex justify-between items-center px-5 py-2.5 bg-gray-50 border-b border-gray-200">
             <span className="font-bold text-sm">الإجمالي / TOTAL:</span>
             <span className="font-extrabold text-base">{invoice.total.toLocaleString()} ج.م</span>

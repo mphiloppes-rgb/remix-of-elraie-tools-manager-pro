@@ -328,7 +328,10 @@ export default function InvoicesPage() {
                   <td className="p-3" onClick={() => setSelectedInvoice(inv)}>{inv.paid.toLocaleString()}</td>
                   <td className={`p-3 font-extrabold ${inv.remaining > 0 ? "text-destructive" : "text-success"}`} onClick={() => setSelectedInvoice(inv)}>{inv.remaining.toLocaleString()}</td>
                   <td className="p-3" onClick={() => setSelectedInvoice(inv)}>
-                    {inv.isReturned ? <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg font-bold">مرتجع</span> : inv.remaining > 0 ? <span className="text-xs bg-destructive/20 text-destructive px-2 py-1 rounded-lg font-bold">عليها باقي</span> : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-lg font-bold">مكتملة</span>}
+                    {inv.isReturned ? <span className="text-xs bg-amber-500/20 text-amber-400 px-2 py-1 rounded-lg font-bold">مرتجع</span>
+                      : (inv as any).status === 'saved' ? <span className="text-xs bg-sky-500/20 text-sky-400 px-2 py-1 rounded-lg font-bold">محفوظة</span>
+                      : inv.remaining > 0 ? <span className="text-xs bg-destructive/20 text-destructive px-2 py-1 rounded-lg font-bold">عليها باقي</span>
+                      : <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-1 rounded-lg font-bold">مكتملة</span>}
                   </td>
                   <td className="p-3 text-center">
                     <div className="flex items-center justify-center gap-1">

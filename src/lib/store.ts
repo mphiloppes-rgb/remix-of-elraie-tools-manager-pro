@@ -28,17 +28,26 @@ export interface InvoiceItem {
   unitPrice: number;
   costPrice: number;
   total: number;
+  discount?: number; // خصم مبلغ على هذا الصنف
+  discountType?: 'amount' | 'percent';
+  discountValue?: number; // القيمة قبل التحويل (لو نسبة)
 }
 
 export interface Invoice {
   id: string;
   invoiceNumber: string;
   items: InvoiceItem[];
+  subtotal?: number; // الإجمالي قبل خصم الفاتورة
+  invoiceDiscount?: number; // مبلغ خصم على الفاتورة كاملة
+  invoiceDiscountType?: 'amount' | 'percent';
+  invoiceDiscountValue?: number;
+  itemsDiscountTotal?: number; // مجموع خصومات الأصناف
   total: number;
   paid: number;
   remaining: number;
   customerId?: string;
   customerName?: string;
+  status?: 'saved' | 'completed'; // saved = محفوظة بدون طباعة، completed = مكتملة
   isReturned?: boolean;
   returnedItems?: ReturnedItem[];
   createdAt: string;
