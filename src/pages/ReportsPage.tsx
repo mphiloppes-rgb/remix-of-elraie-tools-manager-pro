@@ -58,19 +58,41 @@ export default function ReportsPage() {
         ))}
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-6">
+      {/* Stats — uniform sized cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
         {stats.map((s, idx) => (
-          <div key={s.label} className={`stat-card animate-fade-in-up stagger-${(idx % 4) + 1}`}>
-            <div className="flex items-center gap-2 mb-2">
+          <div key={s.label} className={`stat-card animate-fade-in-up stagger-${(idx % 4) + 1} flex flex-col h-full min-h-[120px]`}>
+            <div className="flex items-center gap-2 mb-2 min-h-[40px]">
               <div className={`w-9 h-9 rounded-xl ${s.iconBg} flex items-center justify-center flex-shrink-0`}>
                 <s.icon className={s.iconColor} size={18} />
               </div>
-              <span className="text-xs font-bold text-muted-foreground line-clamp-2">{s.label}</span>
+              <span className="text-xs font-bold text-muted-foreground line-clamp-2 leading-tight">{s.label}</span>
             </div>
-            <p className="text-lg sm:text-xl font-extrabold">{s.value.toLocaleString()} <span className="text-xs">ج.م</span></p>
+            <p className="text-lg sm:text-xl font-extrabold mt-auto truncate">{s.value.toLocaleString()} <span className="text-xs">ج.م</span></p>
           </div>
         ))}
+      </div>
+
+      {/* Quick debt overview — current snapshot (live, not period-bound) */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+        <div className="stat-card flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-destructive/10 flex items-center justify-center flex-shrink-0">
+            <AlertCircle className="text-destructive" size={22} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-muted-foreground mb-0.5">مديونية المحل للموردين (الآن)</p>
+            <p className="text-xl font-extrabold text-destructive truncate">{report.currentSupplierDebt.toLocaleString()} <span className="text-xs">ج.م</span></p>
+          </div>
+        </div>
+        <div className="stat-card flex items-center gap-3">
+          <div className="w-11 h-11 rounded-xl bg-warning/10 flex items-center justify-center flex-shrink-0">
+            <Users className="text-warning" size={22} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="text-xs font-bold text-muted-foreground mb-0.5">مديونية العملاء للمحل (الآن)</p>
+            <p className="text-xl font-extrabold text-warning truncate">{report.currentCustomerDebt.toLocaleString()} <span className="text-xs">ج.م</span></p>
+          </div>
+        </div>
       </div>
 
       {/* Tabs */}
