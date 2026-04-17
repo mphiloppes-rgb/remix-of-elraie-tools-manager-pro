@@ -89,18 +89,18 @@ export default function SuppliersPage() {
         <h1 className="page-header mb-0">الموردين ({suppliers.length})</h1>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-        <div className="stat-card">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
+        <div className="stat-card flex flex-col h-full min-h-[100px]">
           <p className="text-sm font-bold text-muted-foreground mb-1">عدد الموردين</p>
-          <p className="text-2xl font-extrabold">{suppliers.length}</p>
+          <p className="text-2xl font-extrabold mt-auto">{suppliers.length}</p>
         </div>
-        <div className="stat-card">
+        <div className="stat-card flex flex-col h-full min-h-[100px]">
           <p className="text-sm font-bold text-muted-foreground mb-1">إجمالي مديونية المحل</p>
-          <p className="text-2xl font-extrabold text-destructive">{totalDebt.toLocaleString()} ج.م</p>
+          <p className="text-2xl font-extrabold text-destructive mt-auto truncate">{totalDebt.toLocaleString()} ج.م</p>
         </div>
-        <div className="stat-card">
+        <div className="stat-card flex flex-col h-full min-h-[100px]">
           <p className="text-sm font-bold text-muted-foreground mb-1">موردين بدون مديونية</p>
-          <p className="text-2xl font-extrabold text-success">{suppliers.filter((x) => x.balance <= 0).length}</p>
+          <p className="text-2xl font-extrabold text-success mt-auto">{suppliers.filter((x) => x.balance <= 0).length}</p>
         </div>
       </div>
 
