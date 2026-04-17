@@ -217,6 +217,8 @@ export default function ReportsPage() {
             </div>
           </div>
         )}
+
+        {tab === "sales" && (
           <DataTable
             title="تفاصيل فواتير المبيعات"
             empty="لا توجد فواتير"
