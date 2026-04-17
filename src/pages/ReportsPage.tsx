@@ -283,7 +283,21 @@ export default function ReportsPage() {
           />
         )}
 
-        {tab === "products" && (
+        {tab === "supplierPayments" && (
+          <DataTable
+            title="مدفوعات سداد الموردين (سداد ديون قديمة)"
+            empty="لا يوجد مدفوعات سداد للموردين في هذه الفترة"
+            headers={["المورد", "المبلغ", "ملاحظة", "التاريخ"]}
+            rows={report.supplierPaymentsDetails.map((p: any) => [
+              p.supplierName,
+              `${(p.amount || 0).toLocaleString()} ج.م`,
+              p.note || '—',
+              new Date(p.date).toLocaleString("ar-EG"),
+            ])}
+            footer={`إجمالي المدفوعات: ${report.totalSupplierPayments.toLocaleString()} ج.م`}
+          />
+        )}
+
           <DataTable
             title="ربح كل منتج"
             empty="لا توجد مبيعات"
