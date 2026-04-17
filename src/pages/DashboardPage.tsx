@@ -13,6 +13,7 @@ import { getSuppliersWithDebt } from "@/lib/suppliers";
 import { Link } from "react-router-dom";
 import { useStoreRefresh } from "@/hooks/use-store-refresh";
 import logo from "@/assets/logo.png";
+import DashboardCharts from "@/components/DashboardCharts";
 
 export default function DashboardPage() {
   const { refreshKey } = useStoreRefresh();
@@ -105,7 +106,10 @@ export default function DashboardPage() {
         </Link>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      {/* Visual charts */}
+      <DashboardCharts refreshKey={refreshKey} />
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
         {/* Low stock alert */}
         <div className="stat-card animate-fade-in-up stagger-3">
           <div className="flex items-center gap-3 mb-4">
