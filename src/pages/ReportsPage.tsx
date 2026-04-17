@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { BarChart3, TrendingUp, TrendingDown, Receipt, Star, Download, RotateCcw, ShoppingBag, Wallet, Banknote, AlertCircle, Users } from "lucide-react";
+import { BarChart3, TrendingUp, TrendingDown, Receipt, Star, Download, RotateCcw, ShoppingBag, Wallet, Banknote, AlertCircle, Users, Package, Crown } from "lucide-react";
 import { getReport } from "@/lib/store";
 import { useStoreRefresh } from "@/hooks/use-store-refresh";
 import { exportReportToExcel } from "@/lib/excel-export";
@@ -12,7 +12,7 @@ const periods: { key: Period; label: string }[] = [
   { key: "yearly", label: "سنوي" },
 ];
 
-type Tab = "summary" | "financial" | "sales" | "returns" | "expenses" | "purchases" | "supplierPayments" | "products";
+type Tab = "summary" | "financial" | "sales" | "returns" | "expenses" | "purchases" | "supplierPayments" | "products" | "bestCustomers" | "staleProducts";
 
 export default function ReportsPage() {
   const { refreshKey } = useStoreRefresh();
@@ -31,10 +31,14 @@ export default function ReportsPage() {
 
   const tabs: { key: Tab; label: string }[] = [
     { key: "summary", label: "ملخص" },
+    { key: "financial", label: "الموقف المالي" },
     { key: "sales", label: `المبيعات (${report.salesDetails.length})` },
+    { key: "bestCustomers", label: `أفضل العملاء (${report.bestCustomers.length})` },
+    { key: "staleProducts", label: `منتجات راكدة (${report.staleProducts.length})` },
     { key: "returns", label: `المرتجعات (${report.returnsDetails.length})` },
     { key: "expenses", label: `المصاريف (${report.expensesDetails.length})` },
     { key: "purchases", label: `المشتريات (${report.purchaseDetails.length})` },
+    { key: "supplierPayments", label: `سداد موردين (${report.supplierPaymentsDetails.length})` },
     { key: "products", label: `ربح المنتجات (${report.productProfits.length})` },
   ];
 
@@ -59,9 +63,9 @@ export default function ReportsPage() {
       </div>
 
       {/* Stats — uniform sized cards */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3 mb-4">
         {stats.map((s, idx) => (
-          <div key={s.label} className={`stat-card animate-fade-in-up stagger-${(idx % 4) + 1} flex flex-col h-full min-h-[120px]`}>
+          <div key={s.label} className={`stat-card animate-fade-in-up stagger-${(idx % 4) + 1} flex flex-col h-full min-h-[130px]`}>
             <div className="flex items-center gap-2 mb-2 min-h-[40px]">
               <div className={`w-9 h-9 rounded-xl ${s.iconBg} flex items-center justify-center flex-shrink-0`}>
                 <s.icon className={s.iconColor} size={18} />
@@ -311,6 +315,85 @@ export default function ReportsPage() {
               `${p.profit.toLocaleString()} ج.م`,
             ])}
           />
+        )}
+
+        {tab === "bestCustomers" && (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <Crown className="text-amber-500" size={20} />
+              <h3 className="font-extrabold">العملاء الأكثر شراءً (في الفترة)</h3>
+            </div>
+            {report.bestCustomers.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">لا توجد بيانات في هذه الفترة</p>
+            ) : (
+              <>
+                {/* Top 3 highlight */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                  {report.bestCustomers.slice(0, 3).map((c, i) => (
+                    <div key={i} className={`stat-card flex flex-col h-full min-h-[120px] ${i === 0 ? 'border-2 border-amber-500/30' : ''}`}>
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="w-8 h-8 rounded-lg bg-amber-500/15 flex items-center justify-center text-amber-500 font-extrabold">{i + 1}</span>
+                        <span className="text-sm font-extrabold truncate flex-1">{c.name}</span>
+                      </div>
+                      <p className="text-xs text-muted-foreground">{c.invoiceCount} فاتورة</p>
+                      <p className="text-lg font-extrabold text-primary mt-auto truncate">{c.totalSpent.toLocaleString()} ج.م</p>
+                      {c.totalRemaining > 0 && (
+                        <p className="text-xs text-destructive font-bold mt-1">متبقي عليه: {c.totalRemaining.toLocaleString()}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+                <DataTable
+                  title=""
+                  empty=""
+                  headers={["#", "العميل", "عدد الفواتير", "الإجمالي", "المدفوع", "المتبقي"]}
+                  rows={report.bestCustomers.map((c, i) => [
+                    `${i + 1}`,
+                    c.name,
+                    `${c.invoiceCount}`,
+                    `${c.totalSpent.toLocaleString()} ج.م`,
+                    `${c.totalPaid.toLocaleString()} ج.م`,
+                    `${c.totalRemaining.toLocaleString()} ج.م`,
+                  ])}
+                />
+              </>
+            )}
+          </div>
+        )}
+
+        {tab === "staleProducts" && (
+          <div>
+            <div className="flex items-center gap-3 mb-4">
+              <Package className="text-warning" size={20} />
+              <h3 className="font-extrabold">المنتجات الراكدة (مفيش مبيعات منذ 30+ يوم)</h3>
+            </div>
+            {report.staleProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">🎉 ممتاز! كل المنتجات اللي عندك مخزون منها بيعت في آخر 30 يوم.</p>
+            ) : (
+              <>
+                <div className="p-4 bg-warning/10 border border-warning/20 rounded-xl mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
+                  <div>
+                    <p className="text-xs text-muted-foreground font-bold">قيمة المخزون الراكد (تكلفة)</p>
+                    <p className="text-xl font-extrabold text-warning">{report.totalStaleValue.toLocaleString()} ج.م</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground sm:text-left">رأس مال متجمد — فكّر في تخفيضات أو إرجاعها للموردين</p>
+                </div>
+                <DataTable
+                  title=""
+                  empty=""
+                  headers={["المنتج", "الكود", "الكمية", "قيمة المخزون", "آخر بيع", "أيام بدون بيع"]}
+                  rows={report.staleProducts.map((p) => [
+                    p.name,
+                    p.code,
+                    `${p.quantity}`,
+                    `${p.stockValue.toLocaleString()} ج.م`,
+                    p.lastSale ? new Date(p.lastSale).toLocaleDateString("ar-EG") : "لم يُبَع أبدًا",
+                    p.daysSinceLastSale !== null ? `${p.daysSinceLastSale} يوم` : "—",
+                  ])}
+                />
+              </>
+            )}
+          </div>
         )}
       </div>
     </div>
