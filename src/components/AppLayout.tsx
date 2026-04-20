@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import {
   LayoutDashboard,
@@ -15,15 +15,18 @@ import {
   PackagePlus,
 } from "lucide-react";
 import logo from "@/assets/logo.png";
+import { LogoutButton } from "./PinLock";
+import { isCashier, isAuthEnabled, getCurrentUser } from "@/lib/auth";
 
-const navItems = [
+interface NavItem { path: string; label: string; icon: any; cashierAllowed?: boolean; }
+const navItems: NavItem[] = [
   { path: "/", label: "لوحة التحكم", icon: LayoutDashboard },
-  { path: "/pos", label: "نقطة البيع", icon: ShoppingCart },
+  { path: "/pos", label: "نقطة البيع", icon: ShoppingCart, cashierAllowed: true },
   { path: "/products", label: "المنتجات", icon: Package },
-  { path: "/customers", label: "العملاء", icon: Users },
+  { path: "/customers", label: "العملاء", icon: Users, cashierAllowed: true },
   { path: "/suppliers", label: "الموردين", icon: Truck },
   { path: "/purchases", label: "فواتير الشراء", icon: PackagePlus },
-  { path: "/invoices", label: "الفواتير", icon: Receipt },
+  { path: "/invoices", label: "الفواتير", icon: Receipt, cashierAllowed: true },
   { path: "/expenses", label: "المصاريف", icon: Wallet },
   { path: "/reports", label: "التقارير", icon: BarChart3 },
   { path: "/settings", label: "الإعدادات", icon: Settings },
@@ -32,6 +35,21 @@ const navItems = [
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [, setTick] = useState(0);
+
+  useEffect(() => {
+    const handler = () => setTick(t => t + 1);
+    window.addEventListener("auth-change", handler);
+    window.addEventListener("storage", handler);
+    return () => {
+      window.removeEventListener("auth-change", handler);
+      window.removeEventListener("storage", handler);
+    };
+  }, []);
+
+  const cashier = isCashier();
+  const visibleNav = navItems.filter(it => !cashier || it.cashierAllowed);
+  const currentUser = getCurrentUser();
 
   return (
     <div className="flex min-h-screen bg-background">
@@ -71,9 +89,29 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           {/* Navigation */}
           <nav className="flex-1 p-3 space-y-1 overflow-y-auto">
-            {navItems.map((item, idx) => {
+            {visibleNav.map((item, idx) => {
               const isActive = location.pathname === item.path;
               return (
+                <Link
+                  key={item.path}
+                  to={item.path}
+                  onClick={() => setSidebarOpen(false)}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold transition-all duration-300 animate-slide-in ${
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-lg"
+                      : "text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground hover:translate-x-[-4px]"
+                  }`}
+                  style={{ animationDelay: `${idx * 0.05}s` }}
+                >
+                  <item.icon size={20} className={isActive ? "animate-float" : ""} />
+                  <span>{item.label}</span>
+                  {isActive && (
+                    <div className="mr-auto w-2 h-2 rounded-full bg-sidebar-primary-foreground animate-pulse" />
+                  )}
+                </Link>
+              );
+            })}
+          </nav>
                 <Link
                   key={item.path}
                   to={item.path}
