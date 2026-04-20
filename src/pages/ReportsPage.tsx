@@ -468,18 +468,31 @@ export default function ReportsPage() {
 
         {tab === "staleProducts" && (
           <div>
-            <div className="flex items-center gap-3 mb-4">
-              <Package className="text-warning" size={20} />
-              <h3 className="font-extrabold">المنتجات الراكدة (مفيش مبيعات منذ 30+ يوم)</h3>
+            <div className="flex items-center justify-between flex-wrap gap-3 mb-4">
+              <div className="flex items-center gap-3">
+                <Package className="text-warning" size={20} />
+                <h3 className="font-extrabold">المنتجات الراكدة (مفيش مبيعات منذ {staleDays}+ يوم)</h3>
+              </div>
+              <div className="flex gap-1 bg-muted/50 rounded-xl p-1">
+                {([30, 60, 90, 180] as StaleDays[]).map(d => (
+                  <button
+                    key={d}
+                    onClick={() => setStaleDays(d)}
+                    className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${staleDays === d ? "bg-primary text-primary-foreground shadow" : "text-muted-foreground hover:bg-accent"}`}
+                  >
+                    {d === 180 ? "6 شهور" : `${d} يوم`}
+                  </button>
+                ))}
+              </div>
             </div>
-            {report.staleProducts.length === 0 ? (
-              <p className="text-sm text-muted-foreground py-6 text-center">🎉 ممتاز! كل المنتجات اللي عندك مخزون منها بيعت في آخر 30 يوم.</p>
+            {staleByDays.staleProducts.length === 0 ? (
+              <p className="text-sm text-muted-foreground py-6 text-center">🎉 ممتاز! كل المنتجات اللي عندك مخزون منها بيعت في آخر {staleDays} يوم.</p>
             ) : (
               <>
                 <div className="p-4 bg-warning/10 border border-warning/20 rounded-xl mb-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                   <div>
                     <p className="text-xs text-muted-foreground font-bold">قيمة المخزون الراكد (تكلفة)</p>
-                    <p className="text-xl font-extrabold text-warning">{report.totalStaleValue.toLocaleString()} ج.م</p>
+                    <p className="text-xl font-extrabold text-warning">{staleByDays.totalStaleValue.toLocaleString()} ج.م</p>
                   </div>
                   <p className="text-xs text-muted-foreground sm:text-left">رأس مال متجمد — فكّر في تخفيضات أو إرجاعها للموردين</p>
                 </div>
@@ -487,7 +500,7 @@ export default function ReportsPage() {
                   title=""
                   empty=""
                   headers={["المنتج", "الكود", "الكمية", "قيمة المخزون", "آخر بيع", "أيام بدون بيع"]}
-                  rows={report.staleProducts.map((p) => [
+                  rows={staleByDays.staleProducts.map((p) => [
                     p.name,
                     p.code,
                     `${p.quantity}`,
