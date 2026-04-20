@@ -66,6 +66,16 @@ export default function ProductsPage() {
   const handleDelete = (id: string) => { if (confirm("هل تريد حذف هذا المنتج؟")) { deleteProduct(id); refresh(); toast({ title: "تم الحذف" }); } };
   const setField = (key: string, value: any) => setForm((f) => ({ ...f, [key]: value }));
 
+  if (cashierMode) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center">
+        <Lock size={56} className="text-muted-foreground mb-4" />
+        <h2 className="text-xl font-extrabold mb-2">مفيش صلاحية</h2>
+        <p className="text-sm text-muted-foreground">صفحة المنتجات للمدير فقط</p>
+      </div>
+    );
+  }
+
   return (
     <div>
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
